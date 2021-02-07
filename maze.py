@@ -132,8 +132,6 @@ class Maze:
     self.Create(row, col)
     self.Show(self.bandaid[0])
   
-
 if __name__ == '__main__':
   maze = Maze(40, 40)
   maze.Generate()
-  
