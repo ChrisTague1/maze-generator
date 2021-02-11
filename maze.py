@@ -1,140 +1,165 @@
 from random import randint
+from termcolor import cprint
 
 space = "\u2588"
 
 class Cell:
   def __init__(self, row, col, height, width):
-    self.wallAbove = row != 0
-    self.wallBelow = row != height - 1
-    self.wallLeft = col != 0
-    self.wallRight = col != width - 1
-    self.visited = False
+    self.isWall = [
+      row != 0, # Above
+      row != height - 1, # Below
+      col != 0, # Left
+      col != width - 1 # Right
+    ]
+    self.isVisited = False
+    self.isStart = False
+    self.isEnd = False
     self.whoami = [row, col]
-  
-  def directions(self):
-    available = []
-    if self.wallAbove:
-      available.append("above")
-    if self.wallBelow:
-      available.append("below")
-    if self.wallLeft:
-      available.append("left")
-    if self.wallRight:
-      available.append("right")
-    
-    return available
+    self.endNoShow = [
+      True,
+      True,
+      True,
+      True
+    ]
+
+  def Showing(self, height, width):
+    return [
+      self.whoami[0] != 0 and not self.isWall[0] and self.endNoShow[0],
+      self.whoami[0] != height - 1 and not self.isWall[1] and self.endNoShow[1],
+      self.whoami[1] != 0 and not self.isWall[2] and self.endNoShow[2],
+      self.whoami[1] != width - 1 and not self.isWall[3] and self.endNoShow[3]
+    ]
+
+class Display:
+  def __init__(self, value=" ", color="white"):
+    self.value = value
+    self.color = color
 
 class Maze:
-  def __init__(self, height, width):
+  def __init__(self, height, width, useColor):
     self.height = height
     self.width = width
     self.maze = []
     for i in range(self.height):
-      arr = []
+      ar = []
       for j in range(self.width):
-        arr.append(Cell(i, j, self.height, self.width))
-      self.maze.append(arr)
-    self.dir = {
-      "above": -1,
-      "below": 1,
-      "right": 1,
-      "left": -1
-    }
+        ar.append(Cell(i, j, self.height, self.width))
+      self.maze.append(ar)
     self.max = self.height * self.width
     self.count = 0
-    self.bandaid = []
-  
-  def Show(self, maze):
-    display = []
-    for i in range(self.height * 2 - 1):
-      arr = []
-      for j in range(self.width * 2 - 1):
-        if i % 2 == 0 and j % 2 == 0:
-          arr.append(space)
+    self.useColor = useColor
+
+  def __Show(self):
+    display = [[Display() for _ in range(self.width * 2 - 1)] for _ in range(self.height * 2 - 1)]
+    for x in range(self.height):
+      for y in range(self.width):
+        if self.maze[x][y].isVisited:
+          i = 2 * x
+          j = 2 * y
+          display[i][j].value = space
+          directions = self.maze[x][y].Showing(self.height, self.width)
+          if self.maze[x][y].isStart:
+            display[i][j].color = "green"
+          elif self.maze[x][y].isEnd:
+            display[i][j].color="red"
+          if directions[0]:
+            display[i - 1][j].value = space
+          if directions[1]:
+            display[i + 1][j].value = space
+          if directions[2]:
+            display[i][j - 1].value = space
+          if directions[3]:
+            display[i][j + 1].value = space
+    
+    if self.useColor == "Y" or self.useColor == "y":
+      for row in display:
+        for item in row:
+          cprint(item.value, item.color, end="")
+        print()
+    else:
+      for row in display:
+        for item in row:
+          print(item.value, end="")
+        print()
+
+  def __GetDirections(self, row, col):
+    new = []
+    directions = self.maze[row][col].isWall
+    for i in range(len(directions)):
+      if directions[i]:
+        if i == 0:
+          if not self.maze[row - 1][col].isVisited:
+            new.append(0)
+        elif i == 1:
+          if not self.maze[row + 1][col].isVisited:
+            new.append(1)
+        elif i == 2:
+          if not self.maze[row][col - 1].isVisited:
+            new.append(2)
         else:
-          arr.append(" ")
-      display.append(arr)
-    
-    for i, row in enumerate(maze):
-      for j, cell in enumerate(row):
-        if not cell.wallAbove:
-          if i != 0:
-            display[i * 2 - 1][j * 2] = space
-        if not cell.wallBelow:
-          if i != self.height - 1:
-            display[i * 2 + 1][j * 2] = space
-        if not cell.wallLeft:
-          if j != 0:
-            display[i * 2][j * 2 - 1] = space
-        if not cell.wallRight:
-          if j != self.width - 1:
-            display[i * 2][j * 2 + 1] = space
-    
-    for i in display:
-      for j in i:
-        print(j, end = "")
-      print()
+          if not self.maze[row][col + 1].isVisited:
+            new.append(3)
+    return new
 
-  def Remove_Wall_In(self, row, col, fro):
-    if fro == "above":
-      self.maze[row][col].wallBelow = False
-    elif fro == "below":
-      self.maze[row][col].wallAbove = False
-    elif fro == "left":
-      self.maze[row][col].wallRight = False
-    elif fro == "right":
-      self.maze[row][col].wallLeft = False
-  
-  def Remove_Wall_Out(self, row, col, go):
-    if go == "above":
-      self.maze[row][col].wallAbove = False
-    elif go == "below":
-      self.maze[row][col].wallBelow = False
-    elif go == "left":
-      self.maze[row][col].wallLeft = False
-    elif go == "right":
-      self.maze[row][col].wallRight = False
+  def __Initialize(self, start, end):
+    self.maze[start[0]][start[1]].isStart = True
+    
+    if not type(end) == list:
+      end = [self.height - 1, self.width - 1]
+    self.maze[end[0]][end[1]].isEnd = True
+    self.maze[end[0]][end[1]].isVisited = True
 
-  def Get_Directions(self, row, col):
-    directions = self.maze[row][col].directions()
-    new_directions = []
-    if directions:
-      for direction in directions:
-        if direction == "above" or direction == "below":
-          if not self.maze[row + self.dir[direction]][col].visited:
-            new_directions.append(direction)
-        elif direction == "left" or direction == "right":
-          if not self.maze[row][col + self.dir[direction]].visited:
-            new_directions.append(direction)
-    return new_directions
-  
-  def Create(self, row=0, col=0, fro=0):
+    directions = self.__GetDirections(end[0], end[1])
+    direction = directions[randint(0, len(directions) - 1)]
+    for i in range(4):
+      if not i == direction:
+        self.maze[end[0]][end[1]].isWall[i] = False
+        self.maze[end[0]][end[1]].endNoShow[i] = False
+
+    return end
+
+  def __RemoveWallIn(self, row, col, fro):
+      if fro == 0:
+        self.maze[row][col].isWall[1] = False
+      elif fro == 1:
+        self.maze[row][col].isWall[0] = False
+      elif fro == 2:
+        self.maze[row][col].isWall[3] = False
+      else:
+        self.maze[row][col].isWall[2] = False
+
+  def __RemoveWallOut(self, row, col, go):
+    self.maze[row][col].isWall[go] = False
+
+  def __Create(self, row, col, fro=0):
+    self.maze[row][col].isVisited = True
     self.count += 1
-    if not (self.count >= self.max):
-      self.maze[row][col].visited = True
+    if self.count < self.max:
       if fro:
-        self.Remove_Wall_In(row, col, fro)
-      valid_directions = self.Get_Directions(row, col)
-      while valid_directions:
-        valid_directions = self.Get_Directions(row, col)
-        if valid_directions:
-          direction = valid_directions[randint(0, len(valid_directions) - 1)]
-          self.Remove_Wall_Out(row, col, direction)
-          if direction == "above" or direction == "below":
-            self.Create(row + self.dir[direction], col, direction)
-          elif direction == "left" or direction == "right":
-            self.Create(row, col + self.dir[direction], direction)
+        self.__RemoveWallIn(row, col, fro)
+      directions = self.__GetDirections(row, col)
+      while directions:
+        direction = directions[randint(0, len(directions) - 1)]
+        self.__RemoveWallOut(row, col, direction)
+        if direction == 0:
+          self.__Create(row - 1, col, direction)
+        elif direction == 1:
+          self.__Create(row + 1, col, direction)
+        elif direction == 2:
+          self.__Create(row, col - 1, direction)
+        elif direction == 3:
+          self.__Create(row, col + 1, direction)
+        directions = self.__GetDirections(row, col)
       return
-    self.bandaid.append(self.maze)
-    return
+    self.__Show()
+  
+  def Generate(self, start=[0, 0], end=0):
+    end = self.__Initialize(start, end)
+    self.__Create(end[0], end[1])
 
-  def Generate(self, row=0, col=0):
-    self.Create(row, col)
-    self.Show(self.bandaid[0])
-  
 if __name__ == '__main__':
-    x = int(input("Rows: "))
-    y = int(input("Columns: "))
-    maze = Maze(x, y)
-    maze.Generate()
-  
+  c = input("Does your terminal support colors? (Y/n): ")
+  a = int(input("Number of rows: "))
+  b = int(input("Number of columns: "))
+  maze = Maze(a, b, c)
+  maze.Generate()
